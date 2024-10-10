@@ -198,7 +198,6 @@ https://github.com/open-webui/open-webui
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     start_logger()
-    run_migrations()
 
     if RESET_CONFIG_ON_START:
         reset_config()
