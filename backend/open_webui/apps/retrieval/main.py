@@ -629,7 +629,6 @@ async def update_query_settings(
 ####################################
 
 def store_existing_file_in_collection(file_id: str, collection_name: str):
-    file = Files.get_file_by_id(file_id)
     result = VECTOR_DB_CLIENT.query(collection_name=f"file-{file_id}",
                                     filter={"file_id": file_id},
                                     with_vectors=True)
@@ -642,22 +641,15 @@ def store_existing_file_in_collection(file_id: str, collection_name: str):
                 "vector": result.vectors[0][idx],
                 "metadata": result.metadatas[0][idx]
             })
+
         VECTOR_DB_CLIENT.insert(collection_name, items)
 
-        text_content = " ".join([doc for doc in result.documents[0]])
         Files.update_file_metadata_by_id(
             file_id,
             {
                 "collection_name": collection_name,
             },
         )
-
-        return {
-            "status": True,
-            "collection_name": collection_name,
-            "filename": file.meta.get("name", file.filename),
-            "content": text_content,
-        }
 
 def save_docs_to_vector_db(
     docs,
