@@ -634,7 +634,7 @@ def store_file_in_collection(collection_name, result):
         items.append({
             "id": _id,
             "text": result.documents[0][idx],
-            "vector": result.vectors[idx],
+            "vector": result.vectors[0][idx],
             "metadata": result.metadatas[0][idx]
         })
     VECTOR_DB_CLIENT.insert(collection_name, items)
@@ -792,39 +792,25 @@ def process_file(
             # Check if the file has already been processed and save the content
             # Usage: /knowledge/{id}/file/add, /knowledge/{id}/file/update
 
-            if VECTOR_DB=="qdrant": # Todo implement for other connectors
-                result = VECTOR_DB_CLIENT.query(collection_name=f"file-{file.id}",
-                                                filter={"file_id": file.id},
-                                                with_vectors=True)
-                if len(result.ids[0]) > 0 and result.vectors:
-                    store_file_in_collection(collection_name, result)
-                    text_content = " ".join([doc for doc in result.documents[0]])
-                    Files.update_file_metadata_by_id(
-                        file.id,
-                        {
-                            "collection_name": collection_name,
-                        },
-                    )
-
-                    return {
-                        "status": True,
+            result = VECTOR_DB_CLIENT.query(collection_name=f"file-{file.id}",
+                                            filter={"file_id": file.id},
+                                            with_vectors=True)
+            if len(result.ids[0]) > 0 and result.vectors:
+                store_file_in_collection(collection_name, result)
+                text_content = " ".join([doc for doc in result.documents[0]])
+                Files.update_file_metadata_by_id(
+                    file.id,
+                    {
                         "collection_name": collection_name,
-                        "filename": file.meta.get("name", file.filename),
-                        "content": text_content,
-                    }
-            else:
-                result = VECTOR_DB_CLIENT.query(
-                    collection_name=f"file-{file.id}", filter={"file_id": file.id}
+                    },
                 )
 
-            if result is not None and len(result.ids[0]) > 0:
-                docs = [
-                    Document(
-                        page_content=result.documents[0][idx],
-                        metadata=result.metadatas[0][idx],
-                    )
-                    for idx, id in enumerate(result.ids[0])
-                ]
+                return {
+                    "status": True,
+                    "collection_name": collection_name,
+                    "filename": file.meta.get("name", file.filename),
+                    "content": text_content,
+                }
             else:
                 docs = [
                     Document(

@@ -34,7 +34,7 @@ class QdrantClient:
                 "ids": [ids],
                 "documents": [documents],
                 "metadatas": [metadatas],
-                "vectors": vectors,
+                "vectors": [vectors],
             }
         )
 

@@ -13,7 +13,7 @@ class GetResult(BaseModel):
     ids: Optional[List[List[str]]]
     documents: Optional[List[List[str]]]
     metadatas: Optional[List[List[Any]]]
-    vectors: Optional[List[List[float | int]]]
+    vectors: Optional[List[List[List[float | int]]]]
 
 
 
