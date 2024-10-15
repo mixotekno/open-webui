@@ -10,8 +10,10 @@
 		archiveChatById,
 		cloneChatById,
 		deleteChatById,
+		getAllTags,
 		getChatList,
 		getChatListByTagName,
+		getPinnedChatList,
 		updateChatById
 	} from '$lib/apis/chats';
 	import {
@@ -21,7 +23,8 @@
 		mobile,
 		pinnedChats,
 		showSidebar,
-		currentChatPage
+		currentChatPage,
+		tags
 	} from '$lib/stores';
 
 	import ChatMenu from './ChatMenu.svelte';
@@ -55,7 +58,7 @@
 
 			currentChatPage.set(1);
 			await chats.set(await getChatList(localStorage.token, $currentChatPage));
-			await pinnedChats.set(await getChatListByTagName(localStorage.token, 'pinned'));
+			await pinnedChats.set(await getPinnedChatList(localStorage.token));
 		}
 	};
 
@@ -70,16 +73,17 @@
 
 			currentChatPage.set(1);
 			await chats.set(await getChatList(localStorage.token, $currentChatPage));
-			await pinnedChats.set(await getChatListByTagName(localStorage.token, 'pinned'));
+			await pinnedChats.set(await getPinnedChatList(localStorage.token));
 		}
 	};
 
 	const archiveChatHandler = async (id) => {
 		await archiveChatById(localStorage.token, id);
+		tags.set(await getAllTags(localStorage.token));
 
 		currentChatPage.set(1);
 		await chats.set(await getChatList(localStorage.token, $currentChatPage));
-		await pinnedChats.set(await getChatListByTagName(localStorage.token, 'pinned'));
+		await pinnedChats.set(await getPinnedChatList(localStorage.token));
 	};
 
 	const focusEdit = async (node: HTMLInputElement) => {
@@ -89,7 +93,7 @@
 
 <ShareChatModal bind:show={showShareChatModal} chatId={chat.id} />
 
-<div class=" w-full pr-2 relative group">
+<div class=" w-full pr-2 relative group" draggable="true">
 	{#if confirmEdit}
 		<div
 			class=" w-full flex justify-between rounded-xl px-3 py-2 {chat.id === $chatId || confirmEdit
@@ -256,7 +260,10 @@
 						dispatch('unselect');
 					}}
 					on:change={async () => {
-						await pinnedChats.set(await getChatListByTagName(localStorage.token, 'pinned'));
+						await pinnedChats.set(await getPinnedChatList(localStorage.token));
+					}}
+					on:tag={(e) => {
+						dispatch('tag', e.detail);
 					}}
 				>
 					<button

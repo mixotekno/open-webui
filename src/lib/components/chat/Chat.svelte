@@ -78,6 +78,7 @@
 	let loaded = false;
 	const eventTarget = new EventTarget();
 	let controlPane;
+	let controlPaneComponent;
 
 	let stopResponseFlag = false;
 	let autoScroll = true;
@@ -174,10 +175,30 @@
 					message.statusHistory = [data];
 				}
 			} else if (type === 'citation') {
-				if (message?.citations) {
-					message.citations.push(data);
+				if (data?.type === 'code_execution') {
+					// Code execution; update existing code execution by ID, or add new one.
+					if (!message?.code_executions) {
+						message.code_executions = [];
+					}
+
+					const existingCodeExecutionIndex = message.code_executions.findIndex(
+						(execution) => execution.id === data.id
+					);
+
+					if (existingCodeExecutionIndex !== -1) {
+						message.code_executions[existingCodeExecutionIndex] = data;
+					} else {
+						message.code_executions.push(data);
+					}
+
+					message.code_executions = message.code_executions;
 				} else {
-					message.citations = [data];
+					// Regular citation.
+					if (message?.citations) {
+						message.citations.push(data);
+					} else {
+						message.citations = [data];
+					}
 				}
 			} else if (type === 'message') {
 				message.content += data.content;
@@ -290,14 +311,9 @@
 			if (controlPane && !$mobile) {
 				try {
 					if (value) {
-						const currentSize = controlPane.getSize();
-
-						if (currentSize === 0) {
-							const size = parseInt(localStorage?.chatControlsSize ?? '30');
-							controlPane.resize(size ? size : 30);
-						}
+						controlPaneComponent.openPane();
 					} else {
-						controlPane.resize(0);
+						controlPane.collapse();
 					}
 				} catch (e) {
 					// ignore
@@ -307,6 +323,7 @@
 			if (!value) {
 				showCallOverlay.set(false);
 				showOverview.set(false);
+				showArtifacts.set(false);
 			}
 		});
 
@@ -427,7 +444,11 @@
 			console.log($config?.default_models.split(',') ?? '');
 			selectedModels = $config?.default_models.split(',');
 		} else {
-			selectedModels = [''];
+			if ($models.length > 0) {
+				selectedModels = [$models[0].id];
+			} else {
+				selectedModels = [''];
+			}
 		}
 
 		if ($page.url.searchParams.get('youtube')) {
@@ -1943,6 +1964,7 @@
 				system: $settings.system ?? undefined,
 				params: params,
 				history: history,
+				messages: createMessagesList(history.currentId),
 				tags: [],
 				timestamp: Date.now()
 			});
@@ -2008,6 +2030,7 @@
 		class="h-screen max-h-[100dvh] {$showSidebar
 			? 'md:max-w-[calc(100%-260px)]'
 			: ''} w-full max-w-full flex flex-col"
+		id="chat-container"
 	>
 		{#if $settings?.backgroundImageUrl ?? null}
 			<div
@@ -2173,47 +2196,50 @@
 							</div>
 						</div>
 					{:else}
-						<Placeholder
-							{history}
-							{selectedModels}
-							bind:files
-							bind:prompt
-							bind:autoScroll
-							bind:selectedToolIds
-							bind:webSearchEnabled
-							bind:atSelectedModel
-							availableToolIds={selectedModelIds.reduce((a, e, i, arr) => {
-								const model = $models.find((m) => m.id === e);
-								if (model?.info?.meta?.toolIds ?? false) {
-									return [...new Set([...a, ...model.info.meta.toolIds])];
-								}
-								return a;
-							}, [])}
-							transparentBackground={$settings?.backgroundImageUrl ?? false}
-							{stopResponse}
-							{createMessagePair}
-							on:upload={async (e) => {
-								const { type, data } = e.detail;
+						<div class="overflow-auto w-full h-full flex items-center">
+							<Placeholder
+								{history}
+								{selectedModels}
+								bind:files
+								bind:prompt
+								bind:autoScroll
+								bind:selectedToolIds
+								bind:webSearchEnabled
+								bind:atSelectedModel
+								availableToolIds={selectedModelIds.reduce((a, e, i, arr) => {
+									const model = $models.find((m) => m.id === e);
+									if (model?.info?.meta?.toolIds ?? false) {
+										return [...new Set([...a, ...model.info.meta.toolIds])];
+									}
+									return a;
+								}, [])}
+								transparentBackground={$settings?.backgroundImageUrl ?? false}
+								{stopResponse}
+								{createMessagePair}
+								on:upload={async (e) => {
+									const { type, data } = e.detail;
 
-								if (type === 'web') {
-									await uploadWeb(data);
-								} else if (type === 'youtube') {
-									await uploadYoutubeTranscription(data);
-								}
-							}}
-							on:submit={async (e) => {
-								if (e.detail) {
-									prompt = '';
-									await tick();
-									submitPrompt(e.detail);
-								}
-							}}
-						/>
+									if (type === 'web') {
+										await uploadWeb(data);
+									} else if (type === 'youtube') {
+										await uploadYoutubeTranscription(data);
+									}
+								}}
+								on:submit={async (e) => {
+									if (e.detail) {
+										prompt = '';
+										await tick();
+										submitPrompt(e.detail);
+									}
+								}}
+							/>
+						</div>
 					{/if}
 				</div>
 			</Pane>
 
 			<ChatControls
+				bind:this={controlPaneComponent}
 				bind:history
 				bind:chatFiles
 				bind:params
