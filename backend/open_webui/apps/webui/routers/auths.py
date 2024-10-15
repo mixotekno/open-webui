@@ -293,7 +293,6 @@ async def add_user(
         raise HTTPException(400, detail=ERROR_MESSAGES.EMAIL_TAKEN)
 
     try:
-        print(form_data)
         hashed = get_password_hash(form_data.password)
         user = Auths.insert_new_auth(
             form_data.email.lower(),
@@ -310,11 +309,10 @@ async def add_user(
                 AUDIT_EVENT.ENTITY_CREATED,
                 user,
                 object_type="USER",
-                event_user_id=admin_user.id,
+                admin=user,
                 source_ip=source_ip,
                 request_uri=str(request.url),
                 user_agent=user_agent,
-                extra={"admin_action": True},
             )
             return {
                 "token": token,
