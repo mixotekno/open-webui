@@ -11,10 +11,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional, Sequence, Union
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from open_webui.utils.logger import AuditLogger
 from open_webui.apps.retrieval.vector.connector import VECTOR_DB_CLIENT
 
 # Document loaders
@@ -92,7 +102,7 @@ from open_webui.config import (
     YOUTUBE_LOADER_LANGUAGE,
     AppConfig,
 )
-from open_webui.constants import ERROR_MESSAGES
+from open_webui.constants import AUDIT_EVENT, ERROR_MESSAGES
 from open_webui.env import SRC_LOG_LEVELS, DEVICE_TYPE, DOCKER
 from open_webui.utils.misc import (
     calculate_sha256,
@@ -100,7 +110,7 @@ from open_webui.utils.misc import (
     extract_folders_after_data_docs,
     sanitize_filename,
 )
-from open_webui.utils.utils import get_admin_user, get_verified_user
+from open_webui.utils.utils import get_admin_user, get_audit_logger, get_verified_user
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
@@ -476,7 +486,11 @@ class ConfigUpdateForm(BaseModel):
 
 
 @app.post("/config/update")
-async def update_rag_config(form_data: ConfigUpdateForm, user=Depends(get_admin_user)):
+async def update_rag_config(
+    form_data: ConfigUpdateForm,
+    user=Depends(get_admin_user),
+    audit_logger: AuditLogger = Depends(get_audit_logger),
+):
     app.state.config.PDF_EXTRACT_IMAGES = (
         form_data.pdf_extract_images
         if form_data.pdf_extract_images is not None
@@ -527,7 +541,7 @@ async def update_rag_config(form_data: ConfigUpdateForm, user=Depends(get_admin_
             form_data.web.search.concurrent_requests
         )
 
-    return {
+    updated_config = {
         "status": True,
         "pdf_extract_images": app.state.config.PDF_EXTRACT_IMAGES,
         "file": {
@@ -567,6 +581,11 @@ async def update_rag_config(form_data: ConfigUpdateForm, user=Depends(get_admin_
             },
         },
     }
+
+    audit_logger.write(
+        AUDIT_EVENT.CONFIG_UPDATED, admin=user, extra={"updated_config": updated_config}
+    )
+    return updated_config
 
 
 @app.get("/template")
@@ -1253,12 +1272,23 @@ def delete_entries_from_collection(form_data: DeleteForm, user=Depends(get_admin
 
 
 @app.post("/reset/db")
-def reset_vector_db(user=Depends(get_admin_user)):
+def reset_vector_db(
+    request: Request,
+    user=Depends(get_admin_user),
+    audit_logger: AuditLogger = Depends(get_audit_logger),
+):
     VECTOR_DB_CLIENT.reset()
+    audit_logger.write(
+        AUDIT_EVENT.ENTITY_RESET, admin=user, request_uri=str(request.url)
+    )
 
 
 @app.post("/reset/uploads")
-def reset_upload_dir(user=Depends(get_admin_user)) -> bool:
+def reset_upload_dir(
+    request: Request,
+    user=Depends(get_admin_user),
+    audit_logger: AuditLogger = Depends(get_audit_logger),
+) -> bool:
     folder = f"{UPLOAD_DIR}"
     try:
         # Check if the directory exists
@@ -1278,11 +1308,18 @@ def reset_upload_dir(user=Depends(get_admin_user)) -> bool:
     except Exception as e:
         print(f"Failed to process the directory {folder}. Reason: {e}")
 
+    audit_logger.write(
+        AUDIT_EVENT.ENTITY_RESET, admin=user, request_uri=str(request.url)
+    )
     return True
 
 
 @app.post("/reset")
-def reset(user=Depends(get_admin_user)) -> bool:
+def reset(
+    request: Request,
+    user=Depends(get_admin_user),
+    audit_logger: AuditLogger = Depends(get_audit_logger),
+) -> bool:
     folder = f"{UPLOAD_DIR}"
     for filename in os.listdir(folder):
         file_path = os.path.join(folder, filename)
@@ -1296,6 +1333,9 @@ def reset(user=Depends(get_admin_user)) -> bool:
 
     try:
         VECTOR_DB_CLIENT.reset()
+        audit_logger.write(
+            AUDIT_EVENT.ENTITY_RESET, admin=user, request_uri=str(request.url)
+        )
     except Exception as e:
         log.exception(e)
 
