@@ -143,5 +143,5 @@ def get_admin_user(user=Depends(get_current_user)):
     return user
 
 
-def get_audit_logger(user: UserModel = Depends(get_current_user)):
-    return AuditLogger(logger, event_user_id=user.id, user_api_key=user.api_key)
+def get_audit_logger(user: UserModel = Depends(get_admin_user)):
+    return AuditLogger(logger, admin=user)
