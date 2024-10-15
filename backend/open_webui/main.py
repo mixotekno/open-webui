@@ -92,6 +92,7 @@ from open_webui.config import (
 from open_webui.constants import ERROR_MESSAGES, TASKS, WEBHOOK_MESSAGES
 from open_webui.env import (
     CHANGELOG,
+    ENABLE_AUDIT_LOGS,
     GLOBAL_LOG_LEVEL,
     SAFE_MODE,
     SRC_LOG_LEVELS,
@@ -197,7 +198,7 @@ https://github.com/open-webui/open-webui
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    start_logger()
+    start_logger(ENABLE_AUDIT_LOGS)
 
     if RESET_CONFIG_ON_START:
         reset_config()
